@@ -1,77 +1,81 @@
-from PIL import Image, ImageTk
-import tkinter
-from tkinter import filedialog, messagebox
 import os
-import subprocess
+import sys
+from PyQt5 import QtWidgets, QtGui, QtCore
+from interface import Ui_MainWindow
 
-number_photo = 0
-path = ''
-files = []
 
-def center_window(window):
-    window.update_idletasks()
-    width = 500
-    height = 200
-    screen_width = window.winfo_screenwidth()
-    screen_height = window.winfo_screenheight()
-    x = (screen_width - width) // 2
-    y = (screen_height - height) // 2
-    window.geometry(f"{width}x{height}+{x}+{y}")
 
-def choose_path():
-    global number_photo, path, files
-    number_photo = 0
-    try:
-        path = filedialog.askdirectory()
-        files = os.listdir(path)
-        show_photo()
-    except:
-        pass
+class window(QtWidgets.QMainWindow):
+    def __init__(self):
+        super(window, self).__init__()
+        self.number_photo = 0
+        self.files = []
+        self.dir = ''
+        self.ui = Ui_MainWindow()
+        self.ui.setupUi(self)
+        self.ui.but_con.clicked.connect(self.next_photo)
+        self.ui.but_ret.clicked.connect(self.prev_photo)
+        self.ui.but_ok.clicked.connect(self.rename_photo)
+        self.ui.but_choose.clicked.connect(self.choose_directory)
 
-def show_photo(condition=False):
-    global number_photo, path, files
-    if condition:
-        subprocess.call("TASKKILL /F /IM PhotosApp.exe")
-    try:
-        photo = Image.open(fr'{path}\\{files[number_photo]}')
-    except:
-        if number_photo >= len(files):
-            messagebox.showerror("Ошибка", 'Файлы в папке закончились')
-            choose_path()
+
+    def choose_directory(self):
+        self.dir = QtWidgets.QFileDialog.getExistingDirectory(self)
+        if self.dir != '':
+            supported_type = ['.jpg', '.png', '.jpeg']
+            self.files = [file for file in os.listdir(self.dir) if os.path.splitext(file)[1].lower() in supported_type]
+            self.number_photo = 0
+            self.show_photo()
+
+
+    def show_photo(self):
+        height, width = self.ui.output_pic.height(), self.ui.output_pic.width()
+        if len(self.files) > abs(self.number_photo):
+            pixmap = QtGui.QPixmap(rf'{self.dir}//{self.files[self.number_photo]}')
+            pixmap = pixmap.scaled(width, height, QtCore.Qt.KeepAspectRatio)
+            self.ui.output_pic.setPixmap(pixmap)
+            self.ui.old_name.setText(self.files[self.number_photo])
         else:
-            messagebox.showerror('Ошибка', 'Файл не является фото')
-    photo.show()
+            font = QtGui.QFont()
+            font.setFamily("Times New Roman")
+            font.setPointSize(25)
+            self.ui.output_pic.setFont(font)
+            self.ui.output_pic.setText('В папке отсутствуют фото для переименования')
 
-def next_photo():
-    global number_photo
-    number_photo += 1
-    show_photo(condition=True)
+    def check_number(self, count):
+        if abs(self.number_photo) < len(self.files)-1:
+            self.number_photo += count
+        else:
+            self.number_photo = 0
 
-def rename():
-    global number_photo, path, files
-    name = entry.get()
-    type = files[number_photo].split('.')[-1]
-    os.rename(f'{path}//{files[number_photo]}', f'{path}//{name}.{type}')
-    number_photo += 1
-    entry.delete(0, len(entry.get()))
-    show_photo(True)
+    def next_photo(self):
+        self.ui.new_name.clear()
+        self.check_number(count=1)
+        self.show_photo()
 
-def finish():
-    root.destroy()
+    def prev_photo(self):
+        self.ui.new_name.clear()
+        self.check_number(count=-1)
+        self.show_photo()
 
+    def rename_photo(self):
+        type_photo = '.' + self.files[self.number_photo].split('.')[1]
+        new = self.ui.new_name.toPlainText() + type_photo
+        if os.path.isfile(fr'{self.dir}//{new}'):
+            i = 1
+            while (os.path.isfile(fr'{self.dir}//{new}')):
+                new = self.ui.new_name.toPlainText() + str(i) + type_photo
+                i += 1
+            os.rename(fr'{self.dir}//{self.files[self.number_photo]}', fr'{self.dir}//{new}')
+        else:
+            os.rename(fr'{self.dir}//{self.files[self.number_photo]}', fr'{self.dir}//{new}')
+        self.ui.new_name.clear()
+        self.files[self.number_photo] = new
+        self.check_number(count=1)
+        self.show_photo()
 
-root = tkinter.Tk()
-center_window(root)
-root.protocol('WM_DELETE_WINDOW', finish)
+app = QtWidgets.QApplication([])
+application = window()
+application.show()
 
-image = ImageTk.PhotoImage(file='choose_direct.png')
-
-but_ch = tkinter.Button(root, image=image, command=choose_path).place(x=20, y= 100, height=70, width=70)
-but_con = tkinter.Button(root, text='Далее', font='Times 24', command=next_photo).place(x=120, y=100, height=70, width=130)
-but_rename = tkinter.Button(root, text='Переименовать', font='Times 24', command=rename).place(x=270, y=100, height=70, width=220)
-
-entry = tkinter.Entry(root, font='Times 30')
-entry.place(x=20, y=10, height=70, width=470)
-
-root.mainloop()
-
+sys.exit(app.exec())
